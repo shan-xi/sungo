@@ -1,0 +1,48 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sungo}
+      POSTGRES_USER: ${POSTGRES_USER:-sungo_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sungo_app} -d ${POSTGRES_DB:-sungo}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [sungo_net]
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-sungo}
+      DATABASE_USERNAME: ${POSTGRES_USER:-sungo_app}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - uploaded_media:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [sungo_net]
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on: [backend]
+    networks: [sungo_net]
+
+volumes:
+  postgres_data:
+  uploaded_media:
+networks:
+  sungo_net:
